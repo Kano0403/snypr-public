@@ -1,0 +1,15 @@
+{% extends 'layout.html' %}
+
+{% block body %}
+    <h1>Names</h1>
+    <ul>
+        {% for name in names %}
+            <li class="list-group-item">{{name.domain_name}}</li>
+            <ul>
+                <li class="list-group-item">{{name.plan}}</li>
+                <li class="list-group-item">{{name.blocks_in_auction}}</li>
+                <li class="list-group-item">{{name.blocks_in_reveal}}</li>
+            </ul>
+        {% endfor %}
+    </ul>
+{% endblock %}
