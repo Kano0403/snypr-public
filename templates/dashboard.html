@@ -1,15 +1,12 @@
 {% extends 'layout.html' %}
 
 {% block body %}
-    <h1>Names</h1>
+    <h1>Dashboard</h1>
+    <a class="btn btn-success" href="initiate_name">Add Name</a>
+    <h2>Names</h2>
     <ul>
         {% for name in names %}
-            <li class="list-group-item">{{name.domain_name}}</li>
-            <ul>
-                <li class="list-group-item">{{name.plan}}</li>
-                <li class="list-group-item">{{name.blocks_in_auction}}</li>
-                <li class="list-group-item">{{name.blocks_in_reveal}}</li>
-            </ul>
+            <li class="list-group-item"><a href="name"{{name.domain_name}}</li>
         {% endfor %}
     </ul>
 {% endblock %}
