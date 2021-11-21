@@ -7,18 +7,24 @@ from wtforms import Form, StringField, PasswordField, validators
 
 import datetime
 
+from nbintegration import check_names
+from accountvar import DatabaseInfo
 from data import Names
 
 # Hehehe
 app = Flask(__name__)
 mysql = MySQL(app)
+database_info = DatabaseInfo()
 
 # MySQL config
-app.config['MYSQL_HOST'] = 'localhost'
-app.config['MYSQL_USER'] = 'root'
-app.config['MYSQL_PASSWORD'] = ''
-app.config['MYSQL_DB'] = 'SNYPR-DB1'
+app.config['MYSQL_HOST'] = database_info.host
+app.config['MYSQL_USER'] = database_info.user
+app.config['MYSQL_PASSWORD'] = database_info.password
+app.config['MYSQL_DB'] = database_info.name
 app.config['MYSQL_CURSORCLASS'] = 'DictCursor'
+
+# Delete variables holding sensitive information
+del database_info
 
 
 # ----- WRAPS ----- #
@@ -40,9 +46,9 @@ app.config['MYSQL_CURSORCLASS'] = 'DictCursor'
 #    return wrapper
 
 
-def is_owner(id):
+def is_owner(name_id):
     cur = mysql.connection.cursor()
-    result = cur.execute("SELECT * FROM names WHERE owner_id = %s", (id))
+    result = cur.execute("SELECT * FROM names WHERE id = %s AND owner_id = %s", (name_id, session['id']))
     cur.close()
     if result > 0:
         return True
@@ -134,6 +140,7 @@ class NameInfoForm(Form):
 @is_logged_in
 def name(id):
     # Check if logged-in user owns this name
+    print(id)
     if not is_owner(id):
         flash('Unauthorized', 'danger')
         return redirect(url_for('dashboard'))
@@ -141,7 +148,7 @@ def name(id):
     cur = mysql.connection.cursor()
     result = cur.execute("SELECT * FROM names WHERE id = %s AND owner_id = %s", (id, session['id']))
     if result == 0:
-        flash('Unauthorized', 'danger')
+        flash('Unauthorized - 2', 'danger')
         return redirect(url_for('dashboard'))
     name_info = cur.fetchone()
 
@@ -316,9 +323,11 @@ def logout():
 def admin_panel():
     print(datetime.datetime.now())
     print(datetime.datetime.utcnow())
+    check_names(app, mysql)
     return "Check terminal for output"
 
 
 if __name__ == '__main__':
     app.secret_key='sectesdfasj;dfakjs;a234283407*(&#(*$&42038470238'
     app.run(debug=True, port=1020, host='127.0.0.1')
+    check_names()
