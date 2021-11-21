@@ -5,9 +5,11 @@ from flask_mysqldb import MySQL
 from passlib.hash import sha256_crypt
 from wtforms import Form, StringField, PasswordField, validators
 
+import datetime
+
 from data import Names
 
-Names = Names()
+# Names = Names()
 app = Flask(__name__)
 mysql = MySQL(app)
 
@@ -20,25 +22,66 @@ app.config['MYSQL_CURSORCLASS'] = 'DictCursor'
 
 
 # ----- WRAPS ----- #
+
+# def is_owner(id):
+#    def wrapper(f):
+#        @wraps(f)
+#        def wrapped(*args, **kwargs):
+#            if 'id' in session:
+#                if id == session['id']:
+#                    return f(*args, **kwargs)
+#                else:
+#                    flash('Unauthorized')
+#            else:
+#                pass
+#            flash('Unauthorized (Not logged in/session not initialized)', 'danger')
+#            return redirect(url_for('login'))
+#        return wrapped
+#    return wrapper
+
+
+def is_owner(id):
+    cur = mysql.connection.cursor()
+    result = cur.execute("SELECT * FROM names WHERE owner_id = %s", (id))
+    cur.close()
+    if result > 0:
+        return True
+    return False
+
+
 def is_logged_in(f):
     @wraps(f)
     def wrap(*args, **kwargs):
         if 'logged_in' in session:
             return f(*args, **kwargs)
         else:
-            flash('Unauthorized')
+            flash('Unauthorized', 'danger')
             return redirect(url_for('login'))
+    return wrap
+
+
+def is_not_logged_in(f):
+    @wraps(f)
+    def wrap(*args, **kwargs):
+        if 'logged_in' in session:
+            flash('You are already logged in!', 'success')
+            return redirect(url_for('login'))
+        else:
+            return f(*args, **kwargs)
     return wrap
 
 
 def is_admin(f):
     @wraps(f)
     def wrap(*args, **kwargs):
-        if session['is_admin']:
-            return f(*args, **kwargs)
-        else:
-            flash('Unauthorized')
-            return redirect(url_for('index'))
+        if 'is_admin' in session:
+            if session['is_admin']:
+                return f(*args, **kwargs)
+            else:
+                flash('Unauthorized', 'danger')
+                return redirect(url_for('index'))
+        flash('Unauthorized (Not logged in/session not initialized)', 'danger')
+        return redirect(url_for('login'))
     return wrap
 
 
@@ -56,12 +99,83 @@ def about():
 @app.route('/dashboard')
 @is_logged_in
 def dashboard():
-    return render_template('dashboard.html', names=Names)
+    # Get names that are owned by current user
+    cur = mysql.connection.cursor()
+    result = cur.execute("SELECT * FROM names WHERE owner_id = %s", (session['id']))
+    names = cur.fetchall()
+    cur.close()
+    if result > 0:
+        return render_template('dashboard.html', names=names)
+    return render_template('dashboard.html')
 
 
-@app.route('/dashboard/names/<string:id>')
+class NameInfoForm(Form):
+    pass
+    # Show Domain Name
+    # Show Plan [Potentially add a SUBMIT PLAN CHANGE REQUEST button that will be manually reviewed via a discord.py bot?]
+    # Show domain auction info [Incorporate a REPORT button in case it is incorrect]
+    # - Auction Stage
+    # - Biddable blocks remaining in auction
+    # - Total Blocks Remaining in auction
+    # - We are the most recent bidder (True/False)
+    # Show current PROTECT AFTER field (Default:0, greyed out based on plan)
+    # Show INCREASED BUFFER field (Default:0.1, greyed out based on plan)
+    protect_after = StringField('Protect After', [
+        validators.DataRequired(),
+        validators.number_range(0, 720, 'Please enter a valid amount. (0 - 720)')
+    ])
+    increased_buffer = StringField('Increased Buffer', [
+        validators.DataRequired(),
+        validators.number_range(1,99, 'Please enter a valid amount. (')
+    ])
+
+
+@app.route('/dashboard/names/<string:id>', methods=['GET', 'POST'])
+@is_logged_in
 def name(id):
-    return render_template('')
+    # Check if logged-in user owns this name
+    if not is_owner(id):
+        flash('Unauthorized', 'danger')
+        return redirect(url_for('dashboard'))
+
+    cur = mysql.connection.cursor()
+    result = cur.execute("SELECT * FROM names WHERE id = %s AND owner_id = %s", (id, session['id']))
+    if result == 0:
+        flash('Unauthorized', 'danger')
+        return redirect(url_for('dashboard'))
+    name_info = cur.fetchone()
+
+    print(name_info['state'])
+    if name_info['state'] == "":
+        flash('This has not been initialized yet. Please come back soon. (Max time until initialization: 5 minutes)', 'danger')
+        return redirect(url_for('dashboard'))
+
+    domain_name = name_info['domain_name']
+    state = name_info['state']
+    biddable_blocks = name_info['biddable_blocks']
+    total_blocks = name_info['total_blocks']
+    is_most_recent = name_info['is_most_recent']
+
+    protect_after = name_info['protect_after']
+    increased_buffer = name_info['increased_buffer']
+
+    form = NameInfoForm(request.form)
+
+    form.protect_after.data = protect_after
+    form.increased_buffer.data = increased_buffer
+
+    if request.method == 'POST' and form.validate():
+        # Get form info
+        protect_after = form.protect_after.data
+        increased_buffer = form.increased_buffer.data
+
+        cur = mysql.connection.cursor()
+        cur.execute("UPDATE names SET protect_after = %s, increased_buffer = %s, date_edited = %s WHERE id = %s", (protect_after, increased_buffer, datetime.datetime.utcnow(), id))
+        mysql.connection.commit()
+        cur.close()
+
+        return name(id)
+    return render_template('name.html', form=form, domain_name=domain_name, state=state, biddable_blocks=biddable_blocks, total_blocks=total_blocks, is_most_recent=is_most_recent)
 
 
 class NameInitiationForm(Form):
@@ -76,7 +190,7 @@ def initiate_name():
     if request.method == 'POST' and form.validate():
         domain_name = form.domain_name.data
         plan = form.plan.data
-        owners_id = session['id']
+        owner_id = session['id']
         # state = NAMEBASE API REQUEST
         # blocks_in_auction = NAMEBASE API REQUEST
         # blocks_in_reveal = NAMEBASE API REQUEST
@@ -92,14 +206,7 @@ def initiate_name():
             flash('This name has already been initialized. Please make sure everything is spelled correctly, otherwise consider this name taken.', 'danger')
             return redirect(url_for('initiate_name'))
         # Execute
-        cur.execute("INSERT INTO names(owners_id, domain_name, plan) VALUES(%s, %s, %s)", (owners_id, domain_name, plan))
-
-        # ----- TODO: append to user's "names" value in the "users" database to show ownership of this name.
-        names = cur.execute("SELECT * FROM users WHERE id = session['id']")
-        result = cur.execute("SELECT * FROM names WHERE domain_name = %s", [domain_name])
-        print(names)
-        names += f"{result['id']},"
-        print(names)
+        cur.execute("INSERT INTO names(owner_id, domain_name, plan, date_edited) VALUES(%s, %s, %s, %s)", (owner_id, domain_name, plan, datetime.datetime.utcnow()))
         # Commit
         mysql.connection.commit()
         # Close
@@ -110,6 +217,7 @@ def initiate_name():
 
         return redirect(url_for('dashboard'))
     return render_template('initiate_name.html', form=form)
+
 
 class RegisterForm(Form):
     username = StringField('Name', [validators.Length(min=1, max=30)])
@@ -163,14 +271,12 @@ def login():
             hashed_password = data['password']
             names = data['names_ids']
 
-            flash('Login Successful')
-            redirect(url_for('dashboard'))
             if sha256_crypt.verify(password, hashed_password):
                 # Set session variables
                 session['logged_in'] = True
                 session['username'] = username
                 session['names'] = names
-                session['id'] = data['id']
+                session['id'] = str(data['id'])
                 print(session['username'])
                 print(session['names'])
                 print(session['id'])
@@ -180,7 +286,9 @@ def login():
                     session['is_admin'] = True
                 else:
                     session['is_admin'] = False
+
                 print('PASS')
+                return redirect(url_for('dashboard'))
             else:
                 print('FAIL - INCORRECT PASSWORD')
                 error = 'Invalid Login. Please check your username and/or password.'
@@ -191,6 +299,7 @@ def login():
             error = 'Invalid Login. Please check your username and/or password.'
             return render_template('login.html', error=error)
 
+    # If GET:
     return render_template('login.html')
 
 
@@ -200,6 +309,14 @@ def logout():
     session.clear()
     flash('Logout Successful', 'success')
     return redirect(url_for('login'))
+
+
+@app.route('/adminpanel')
+@is_admin
+def admin_panel():
+    print(datetime.datetime.now())
+    print(datetime.datetime.utcnow())
+    return "Check terminal for output"
 
 
 if __name__ == '__main__':
