@@ -9,6 +9,7 @@ import datetime
 
 from data import Names
 
+# Hehehe
 app = Flask(__name__)
 mysql = MySQL(app)
 
