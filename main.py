@@ -387,4 +387,4 @@ def admin_panel():
 
 if __name__ == '__main__':
     app.secret_key='sectesdfasj;dfakjs;a234283407*(&#(*$&42038470238'
-    app.run(debug=True, port=1020, host='0.0.0.0')
+    app.run(port=1020, host='0.0.0.0')
