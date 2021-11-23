@@ -1,4 +1,7 @@
+import signal
+import sys
 from functools import wraps
+import os
 
 from flask import Flask, request, render_template, flash, redirect, url_for, session
 from flask_mysqldb import MySQL
@@ -28,29 +31,11 @@ del database_info
 
 
 # ----- WRAPS ----- #
-
-# def is_owner(id):
-#    def wrapper(f):
-#        @wraps(f)
-#        def wrapped(*args, **kwargs):
-#            if 'id' in session:
-#                if id == session['id']:
-#                    return f(*args, **kwargs)
-#                else:
-#                    flash('Unauthorized')
-#            else:
-#                pass
-#            flash('Unauthorized (Not logged in/session not initialized)', 'danger')
-#            return redirect(url_for('login'))
-#        return wrapped
-#    return wrapper
-
-
 def is_owner(name_id):
     cur = mysql.connection.cursor()
     result = cur.execute("SELECT * FROM names WHERE id = %s AND owner_id = %s", (name_id, session['id']))
     cur.close()
-    if result > 0:
+    if result > 0 or session['is_admin']:
         return True
     return False
 
@@ -92,6 +77,18 @@ def is_admin(f):
 
 
 # ----- MAIN ----- #
+@app.route('/shutdown', methods=['GET', 'POST'])
+@is_logged_in
+def shutdown():
+    if request.method == 'POST':
+        with open('logs/shutdowns.txt', 'r+') as shutdown_logs:
+            shutdown_logs.write(f"Emergency shutdown initiated by {session['username']}\n")
+        os.kill(os.getpid(), signal.SIGINT)
+        return
+
+    return render_template('shutdown.html')
+
+
 @app.route('/')
 def index():
     return render_template('home.html')
@@ -139,12 +136,13 @@ class NameInfoForm(Form):
 @app.route('/dashboard/names/<string:id>', methods=['GET', 'POST'])
 @is_logged_in
 def name(id):
-    # Check if logged-in user owns this name
+    # Check if logged-in user owns this name (or is_admin)
     print(id)
     if not is_owner(id):
         flash('Unauthorized', 'danger')
         return redirect(url_for('dashboard'))
 
+    # Check if name is valid
     cur = mysql.connection.cursor()
     result = cur.execute("SELECT * FROM names WHERE id = %s AND owner_id = %s", (id, session['id']))
     if result == 0:
@@ -182,6 +180,15 @@ def name(id):
         cur.close()
 
         return name(id)
+
+    # Check if auction has started
+    if name_info['biddable_blocks'] == -1 or name_info['total_blocks'] == -1:
+        state = "Waiting for auction start"
+        biddable_blocks = "Waiting for auction start"
+        total_blocks = "Waiting for auction start"
+
+    is_most_recent = "WORK IN PROGRESS"
+
     return render_template('name.html', form=form, domain_name=domain_name, state=state, biddable_blocks=biddable_blocks, total_blocks=total_blocks, is_most_recent=is_most_recent)
 
 
@@ -213,7 +220,8 @@ def initiate_name():
             flash('This name has already been initialized. Please make sure everything is spelled correctly, otherwise consider this name taken.', 'danger')
             return redirect(url_for('initiate_name'))
         # Execute
-        cur.execute("INSERT INTO names(owner_id, domain_name, plan, date_edited) VALUES(%s, %s, %s, %s)", (owner_id, domain_name, plan, datetime.datetime.utcnow()))
+        cur.execute("INSERT INTO names(owner_id, domain_name, plan, date_edited) VALUES(%s, %s, %s, %s)",
+                    (owner_id, domain_name, plan, datetime.datetime.utcnow()))
         # Commit
         mysql.connection.commit()
         # Close
@@ -235,6 +243,7 @@ class RegisterForm(Form):
         validators.EqualTo('confirmPassword', message='Passwords do not match.')
     ])
     confirmPassword = PasswordField('Confirm Password')
+    accessCode = StringField('Beta Access Code')
 
 
 @app.route('/register', methods=['GET', 'POST'])
@@ -245,21 +254,66 @@ def register():
         username = form.username.data
         email = form.email.data
         password = sha256_crypt.hash(form.password.data)
+        access_code = form.accessCode.data
 
-        # Create cursor
+        # Check if username is already taken
+        if is_username_taken(username):
+            flash('Username Taken', 'danger')
+            return redirect(url_for('register'))
+
+        if is_email_taken(email):
+            flash('Email Taken', 'danger')
+            return redirect(url_for('login'))
+
+        # Check if access code is valid
+        if not validate_access_code(access_code):
+            flash('Invalid Access Tokens', 'danger')
+            return redirect(url_for('register'))
+
+        # Create mysql connection
         cur = mysql.connection.cursor()
-        # Execute
         cur.execute("INSERT INTO users(username, email, password) VALUES(%s, %s, %s)", (username, email, password))
-        # Commit
         mysql.connection.commit()
-        # Close
         cur.close()
 
         flash('You have been registered. You can now sign in.', 'success')
-
         return redirect(url_for('login'))
 
     return render_template('register.html', form=form)
+
+
+def is_username_taken(username):
+    # Taken = True
+    cur = mysql.connection.cursor()
+    result = cur.execute("SELECT * FROM users WHERE username = %s", [username])
+    if result > 0:
+        return True
+    return False
+
+
+def is_email_taken(email):
+    # Taken = True
+    cur = mysql.connection.cursor()
+    result = cur.execute("SELECT * FROM users WHERE email = %s", [email])
+    if result > 0:
+        return True
+    return False
+
+
+def validate_access_code(access_code):
+    # Valid = True
+    cur = mysql.connection.cursor()
+    result = cur.execute("SELECT * FROM codes WHERE code = %s", [access_code])
+    if result > 0:
+        cur.execute("DELETE FROM codes WHERE code = %s", [access_code])
+        mysql.connection.commit()
+        cur.close()
+        del cur
+        return True
+    else:
+        cur.close()
+        del cur
+        return False
 
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -323,11 +377,14 @@ def logout():
 def admin_panel():
     print(datetime.datetime.now())
     print(datetime.datetime.utcnow())
-    check_names(app, mysql)
-    return "Check terminal for output"
+    test = check_names(mysql)
+    print(test)
+    return f"""
+    <h1>Check terminal for output</h1>
+    <h2>{test}</h2>
+    """
 
 
 if __name__ == '__main__':
     app.secret_key='sectesdfasj;dfakjs;a234283407*(&#(*$&42038470238'
-    app.run(debug=True, port=1020, host='127.0.0.1')
-    check_names()
+    app.run(debug=True, port=1020, host='0.0.0.0')
