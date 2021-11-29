@@ -1,0 +1,12 @@
+{% extends 'layout.html' %}
+
+{% block body %}
+    <h1>Add Cookie</h1>
+    {% from "includes/_formhelpers.html" import render_field %}
+    <form method="POST" action="">
+        <div class="form-group">
+            {{ render_field(form.cookie, class_="form_control") }}
+        </div>
+        <p><input class="btn btn-primary" type="submit" value="Submit"></p>
+    </form>
+{% endblock %}

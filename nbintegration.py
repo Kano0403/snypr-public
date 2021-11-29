@@ -126,3 +126,14 @@ def update_names(mysql, state, bid, biddable_blocks=-1, total_blocks=-1):
         datetime.datetime.utcnow()  # date_edited
     ))
     cur.close()
+
+
+def set_auth(mysql):
+    global marketplace
+    cur = mysql.connection.cursor()
+    cur.execute("SELECT cookie FROM users WHERE id = %s", [session['id']])
+    cookie = cur.fetchone()['cookie']
+    if cookie is None:
+        return "Please add a cookie to your account"
+    return cookie
+    # marketplace = Marketplace(namebase_cookie=cookie)
