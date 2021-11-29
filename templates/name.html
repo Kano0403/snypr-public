@@ -1,5 +1,21 @@
 {% extends 'layout.html' %}
 
 {% block body %}
-    <h1></h1>
+    <h1>Name Information <small>{{ domain_name }}/</small></h1>
+    <div class="plain">
+        <h4>{{ state }}</h4>
+        <h4>{{ biddable_blocks }}</h4>
+        <h4>{{ total_blocks }}</h4>
+        <h4>{{ is_most_recent }}</h4>
+    </div>
+    {% from "includes/_formhelpers.html" import render_field %}
+    <form method="POST" action="">
+        <div class="form-group">
+            {{ render_field(form.protect_after, class_="form_control") }}
+        </div>
+        <div class="form-group">
+            {{ render_field(form.increased_buffer, class_="form_control") }}
+        </div>
+        <p><input class="btn btn-primary" type="submit" value="Submit"> | <button class="btn btn-danger">Report Incorrect Information</button></p>
+    </form>
 {% endblock %}

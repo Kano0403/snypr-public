@@ -3,10 +3,12 @@
 {% block body %}
     <h1>Dashboard</h1>
     <a class="btn btn-success" href="initiate_name">Add Name</a>
+    {% if not names == NULL %}
     <h2>Names</h2>
     <ul>
         {% for name in names %}
-            <li class="list-group-item"><a href="name"{{name.domain_name}}</li>
+            <li class="list-group-item"><a href="dashboard/names/{{name.id}}">{{name.domain_name}}</a></li>
         {% endfor %}
     </ul>
+    {% endif %}
 {% endblock %}
