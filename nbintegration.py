@@ -29,7 +29,7 @@ def check_names(mysql, database_host='localhost', database_user='root', database
 
     names = sorted(names, key=itemgetter('biddable_blocks'))
     print(names)
-    print()
+    print(marketplace.get_user_info())
 
     # Repeat for each name in the database
     for name in names:
@@ -39,65 +39,129 @@ def check_names(mysql, database_host='localhost', database_user='root', database
         name_info = marketplace.get_domain_info(name['domain_name'])
         print(f"NB-domain_info: {name_info}")
 
-        # Check if name has been initialized, and if not initialize it
-        if not name_info['bids']:
-            print("Name not initialized")
-            bid = name['increased_buffer']
-            make_bid = marketplace.create_bid(name['domain_name'], bid, 0)
-            print(f"NB-create_bid: {make_bid}")
+        results = {name['id']: name_bidder(mysql, name)}
+        # # Check if name has been initialized, and if not initialize it
+        # if not name_info['bids']:
+        #     print("Name not initialized")
+        #     bid = name['increased_buffer']
+        #     make_bid = marketplace.create_bid(name['domain_name'], bid, 0)
+        #     print(f"NB-create_bid: {make_bid}")
+        #
+        #     # Check if the request went through
+        #     if not make_bid['success']:
+        #         return make_bid['code']
+        #
+        #     name_info = marketplace.get_domain_info(name['domain_name'])
+        #
+        #     if name_info['closeBlock'] is None:
+        #         # Update database for frontend
+        #         update_names(mysql, 'active', int(bid))
+        #         # cur.execute("UPDATE names SET state = %s, biddable_blocks = %s, total_blocks = %s, current_bid = %s, date_edited = %s", (
+        #         #     'active',  # State
+        #         #     -1,  # biddable_blocks
+        #         #     -1,  # total_blocks
+        #         #     (int(bid)),  # current_bid
+        #         #     datetime.datetime.utcnow()  # date_edited
+        #         # ))
+        #         # cur.close()
+        #         return "Not Ready"
+        #
+        #     # Update database for frontend
+        #     update_names(mysql, 'active', int(bid), biddable_blocks=int(name_info['height']) - int(name_info['revealBlock']), total_blocks=int(name_info['height']) - int(name_info['closeBlock']))
+        #     # cur.execute("UPDATE names SET state = %s, biddable_blocks = %s, total_blocks = %s, current_bid = %s, date_edited = %s", (
+        #     #     'active',                                                    # State
+        #     #     (int(name_info['height']) - int(name_info['revealBlock'])),  # biddable_blocks
+        #     #     (int(name_info['height']) - int(name_info['closeBlock'])),   # total_blocks
+        #     #     (int(bid)),                                                  # current_bid
+        #     #     datetime.datetime.utcnow()                                   # date_edited
+        #     # ))
+        #     # cur.close()
+        #
+        #     return marketplace.get_domain_info(name['domain_name'])
+        #
+        # print('Name Already Initialized')
+        #
+        # for each in name_info['bids']:
+        #     print(f"Stake: {each['stake_amount']}")
+        #     print(f"is_own: {each['is_own']}")
+        #
+        # new_bid_info = is_highest(name_info['bids'])
+        #
+        # if new_bid_info['is_bid_needed']:
+        #     print(f"Bid of {new_bid_info['highest_bid']} + buffer({name['increased_buffer']}) Needed")
+        #     # TODO: Create process of making the new bid
+        #     # Create bid increasing by
+        #     bid = (new_bid_info['highest_bid'] + name['increased_buffer'])
+        #     make_bid = marketplace.create_bid(name['domain_name'], bid, 0)
+        #     print(f"NB-create_bid: {make_bid}")
+        #
+        # else:
+        #     print(f"Bid Not Needed")
 
-            # Check if the request went through
-            if not make_bid['success']:
-                return make_bid['code']
+    return results
 
-            name_info = marketplace.get_domain_info(name['domain_name'])
 
-            if name_info['closeBlock'] is None:
-                # Update database for frontend
-                update_names(mysql, 'active', int(bid))
-                # cur.execute("UPDATE names SET state = %s, biddable_blocks = %s, total_blocks = %s, current_bid = %s, date_edited = %s", (
-                #     'active',  # State
-                #     -1,  # biddable_blocks
-                #     -1,  # total_blocks
-                #     (int(bid)),  # current_bid
-                #     datetime.datetime.utcnow()  # date_edited
-                # ))
-                # cur.close()
-                return "Not Ready"
+def name_bidder(mysql, name):
+    name_info = marketplace.get_domain_info(name['domain_name'])
 
+    # Check if name has been initialized, and if not initialize it
+    if not name_info['bids']:
+        print("Name not initialized")
+        bid = name['increased_buffer']
+        make_bid = marketplace.create_bid(name['domain_name'], bid, 0)
+        print(f"NB-create_bid: {make_bid}")
+
+        # Check if the request went through
+        if not make_bid['success']:
+            return f"s401 - Namebase error: {make_bid['code']}"
+
+        if name_info['closeBlock'] is None:
             # Update database for frontend
-            update_names(mysql, 'active', int(bid), biddable_blocks=int(name_info['height']) - int(name_info['revealBlock']), total_blocks=int(name_info['height']) - int(name_info['closeBlock']))
+            update_names(mysql, 'active', int(bid))
             # cur.execute("UPDATE names SET state = %s, biddable_blocks = %s, total_blocks = %s, current_bid = %s, date_edited = %s", (
-            #     'active',                                                    # State
-            #     (int(name_info['height']) - int(name_info['revealBlock'])),  # biddable_blocks
-            #     (int(name_info['height']) - int(name_info['closeBlock'])),   # total_blocks
-            #     (int(bid)),                                                  # current_bid
-            #     datetime.datetime.utcnow()                                   # date_edited
+            #     'active',  # State
+            #     -1,  # biddable_blocks
+            #     -1,  # total_blocks
+            #     (int(bid)),  # current_bid
+            #     datetime.datetime.utcnow()  # date_edited
             # ))
             # cur.close()
+            return "s402 - Waiting for name auction to begin."
 
-            return marketplace.get_domain_info(name['domain_name'])
+        # Update database for frontend
+        update_names(mysql, 'active', int(bid),
+                     biddable_blocks=int(name_info['height']) - int(name_info['revealBlock']),
+                     total_blocks=int(name_info['height']) - int(name_info['closeBlock']))
+        # cur.execute("UPDATE names SET state = %s, biddable_blocks = %s, total_blocks = %s, current_bid = %s, date_edited = %s", (
+        #     'active',                                                    # State
+        #     (int(name_info['height']) - int(name_info['revealBlock'])),  # biddable_blocks
+        #     (int(name_info['height']) - int(name_info['closeBlock'])),   # total_blocks
+        #     (int(bid)),                                                  # current_bid
+        #     datetime.datetime.utcnow()                                   # date_edited
+        # ))
+        # cur.close()
 
-        print('Name Already Initialized')
+        return marketplace.get_domain_info(name['domain_name'])
 
-        for each in name_info['bids']:
-            print(f"Stake: {each['stake_amount']}")
-            print(f"is_own: {each['is_own']}")
+    print('Name Already Initialized')
 
-        new_bid_info = is_highest(name_info['bids'])
+    for each in name_info['bids']:
+        print(f"Stake: {each['stake_amount']}")
+        print(f"is_own: {each['is_own']}")
 
-        if new_bid_info['is_bid_needed']:
-            print(f"Bid of {new_bid_info['highest_bid']} + buffer({name['increased_buffer']}) Needed")
-            # TODO: Create process of making the new bid
-            # Create bid increasing by
-            bid = (new_bid_info['highest_bid'] + name['increased_buffer'])
-            make_bid = marketplace.create_bid(name['domain_name'], bid, 0)
-            print(f"NB-create_bid: {make_bid}")
+    new_bid_info = is_highest(name_info['bids'])
 
-        else:
-            print(f"Bid Not Needed")
+    if new_bid_info['is_bid_needed']:
+        print(f"Bid of {new_bid_info['highest_bid']} + buffer({name['increased_buffer']}) Needed")
+        # TODO: Create process of making the new bid
+        # Create bid increasing by
+        bid = (new_bid_info['highest_bid'] + name['increased_buffer'])
+        make_bid = marketplace.create_bid(name['domain_name'], bid, 0)
+        print(f"NB-create_bid: {make_bid}")
 
-    return "Success"
+    else:
+        print(f"Bid Not Needed")
+
 
 
 def is_highest(bids):
@@ -126,3 +190,17 @@ def update_names(mysql, state, bid, biddable_blocks=-1, total_blocks=-1):
         datetime.datetime.utcnow()  # date_edited
     ))
     cur.close()
+
+
+def set_auth(mysql, clear=False):
+    global marketplace
+    if clear:
+        marketplace = Marketplace()
+        return marketplace.get_user_info()
+    cur = mysql.connection.cursor()
+    cur.execute("SELECT cookie FROM users WHERE id = %s", [session['id']])
+    cookie = cur.fetchone()['cookie']
+    if cookie is None:
+        return "Please add a cookie to your account"
+    marketplace = Marketplace(namebase_cookie=cookie)
+    return marketplace.get_user_info()

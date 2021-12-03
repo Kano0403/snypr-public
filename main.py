@@ -9,8 +9,8 @@ from wtforms import Form, StringField, PasswordField, validators
 
 import datetime
 
-from nbintegration import check_names
-from accountvar import DatabaseInfo
+from nbintegration import check_names, set_auth
+from accountvar import DatabaseInfo, Setup
 
 # Hehehe
 app = Flask(__name__)
@@ -42,13 +42,17 @@ def has_cookie(f):
     @wraps(f)
     def wrap(*args, **kwargs):
         cur = mysql.connection.cursor()
-        result = cur.execute("SELECT cookie FROM users WHERE owner_id = %s", [session['id']])
+        result = cur.execute("SELECT cookie FROM users WHERE id = %s", [session['id']])
+        print(result)
+        cookie = cur.fetchone()['cookie']
+        print(cookie)
         cur.close()
-        if result > 0:
+        if cookie is not None:
             return f(*args, **kwargs)
         else:
             flash('Please add a cookie to your account.', 'danger')
-            return redirect(url_for('dashboard.html'))
+            return redirect(url_for('add_cookie'))
+
     return wrap
 
 
@@ -60,6 +64,7 @@ def is_logged_in(f):
         else:
             flash('Unauthorized', 'danger')
             return redirect(url_for('login'))
+
     return wrap
 
 
@@ -71,6 +76,7 @@ def is_not_logged_in(f):
             return redirect(url_for('login'))
         else:
             return f(*args, **kwargs)
+
     return wrap
 
 
@@ -85,53 +91,8 @@ def is_admin(f):
                 return redirect(url_for('index'))
         flash('Unauthorized (Not logged in/session not initialized)', 'danger')
         return redirect(url_for('login'))
+
     return wrap
-
-
-# ----- Form Classes ----- #
-class NameInitiationForm(Form):
-    domain_name = StringField('Domain', [validators.DataRequired()])
-    plan = StringField('Plan', [validators.AnyOf(values=['Regular', 'Pro', 'Elite'], message='Please choose a plan based on the list of available plans: Regular, Pro, Elite')])
-
-
-class RegisterForm(Form):
-    username = StringField('Name', [validators.Length(min=1, max=30)])
-    email = StringField('Email', [validators.Length(min=3, max=100)])
-    password = PasswordField('Password', [
-        validators.Length(min=8, max=64),
-        validators.DataRequired(),
-        validators.EqualTo('confirmPassword', message='Passwords do not match.')
-    ])
-    confirmPassword = PasswordField('Confirm Password')
-    accessCode = StringField('Beta Access Code')
-
-
-class NameInfoForm(Form):
-    pass
-    # Show Domain Name
-    # Show Plan [Potentially add a SUBMIT PLAN CHANGE REQUEST button that will be manually reviewed via a discord.py bot?]
-    # Show domain auction info [Incorporate a REPORT button in case it is incorrect]
-    # - Auction Stage
-    # - Biddable blocks remaining in auction
-    # - Total Blocks Remaining in auction
-    # - We are the most recent bidder (True/False)
-    # Show current PROTECT AFTER field (Default:0, greyed out based on plan)
-    # Show INCREASED BUFFER field (Default:0.1, greyed out based on plan)
-    protect_after = StringField('Protect After', [
-        validators.DataRequired(),
-        validators.number_range(0, 720, 'Please enter a valid amount. (0 - 720)')
-    ])
-    increased_buffer = StringField('Increased Buffer', [
-        validators.DataRequired(),
-        validators.number_range(1,99, 'Please enter a valid amount. (')
-    ])
-
-
-class CookieAddForm(Form):
-    cookie = StringField('cookie', [
-        validators.DataRequired(),
-        validators.any_of('s%3A', message='Please make sure that the cookie is formatted correctly. It should start with "s%3A".')
-    ])
 
 
 # ----- Registration Checks ----- #
@@ -167,6 +128,62 @@ def validate_access_code(access_code):
         cur.close()
         del cur
         return False
+
+
+# ----- Form Classes ----- #
+class NameInitiationForm(Form):
+    domain_name = StringField('Domain', [
+        validators.DataRequired(message='Please fill out all fields.')
+    ])
+    plan = StringField('Plan', [
+        validators.AnyOf(values=['Regular', 'Pro', 'Elite'], message='Please choose a plan based on the list of available plans: Regular, Pro, Elite')
+    ])
+
+
+class RegisterForm(Form):
+    username = StringField('Username', [
+        validators.Length(min=1, max=30, message='Please have a username of between 3 and 100 characters.'),
+        validators.NoneOf(' ', message='Please do not use spaces or symbols in your username.')
+    ])
+    email = StringField('Email', [
+        validators.Length(min=3, max=100, message='Please have a username of between 3 and 100 characters.'),
+        # validators.Email(message='Please enter a valid email. If your email is valid, please report this in the Discord.')
+    ])
+    password = PasswordField('Password', [
+        validators.Length(min=8, max=64, message='Mad password length is 64 characters.'),
+        validators.DataRequired(message='Please fill out all fields.'),
+        validators.EqualTo('confirmPassword', message='Passwords do not match.')
+    ])
+    confirmPassword = PasswordField('Confirm Password')
+    accessCode = StringField('Beta Access Code')
+
+
+class NameInfoForm(Form):
+    pass
+    # Show Domain Name
+    # Show Plan [Potentially add a SUBMIT PLAN CHANGE REQUEST button that will be manually reviewed via a discord.py bot?]
+    # Show domain auction info [Incorporate a REPORT button in case it is incorrect]
+    # - Auction Stage
+    # - Biddable blocks remaining in auction
+    # - Total Blocks Remaining in auction
+    # - We are the most recent bidder (True/False)
+    # Show current PROTECT AFTER field (Default:0, greyed out based on plan)
+    # Show INCREASED BUFFER field (Default:0.1, greyed out based on plan)
+    protect_after = StringField('Protect After', [
+        validators.DataRequired(message='Please fill out all fields.'),
+        validators.number_range(0, 720, message='Please enter a valid amount. (0 - 720)')
+    ])
+    increased_buffer = StringField('Increased Buffer', [
+        validators.DataRequired(message='Please fill out all fields.'),
+        validators.number_range(1, 99, message='Please enter a valid amount. (1 - 99)')
+    ])
+
+
+class CookieAddForm(Form):
+    cookie = StringField('Cookie', [
+        validators.DataRequired(message='Please fill out all fields.'),
+        # validators.any_of('s%3A', message='Please make sure that the cookie is formatted correctly. It should start with "s%3A".')
+    ])
 
 
 # ----- MAIN ----- #
@@ -216,7 +233,7 @@ def name(id):
 
     # Check if name is valid
     cur = mysql.connection.cursor()
-    result = cur.execute("SELECT * FROM names WHERE id = %s AND owner_id = %s", (id, session['id']))
+    result = cur.execute("SELECT * FROM names WHERE id = %s AND owner_id = %s", (id, int(session['id'])))
     if result == 0:
         flash('Unauthorized - 2', 'danger')
         return redirect(url_for('dashboard'))
@@ -305,12 +322,12 @@ def initiate_name():
 @app.route('/add-cookie', methods=['GET', 'POST'])
 @is_logged_in
 def add_cookie():
-    form = CookieAddForm
-    if request.method == 'POST':
+    form = CookieAddForm(request.form)
+    if request.method == 'POST' and form.validate():
         cookie = form.cookie.data
 
         cur = mysql.connection.cursor()
-        cur.execute("UPDATE names SET cookie = %s WHERE id = %s", (cookie, session['id']))
+        cur.execute("UPDATE users SET cookie = %s WHERE id = %s", (cookie, session['id']))
         mysql.connection.commit()
         cur.close()
         del cur
@@ -417,14 +434,24 @@ def logout():
 def admin_panel():
     print(datetime.datetime.now())
     print(datetime.datetime.utcnow())
-    test = check_names(mysql)
-    print(test)
+    test = set_auth(mysql)
+    test2 = check_names(mysql)
+    print(f"set_auth: {test}")
+    print(f"check_names: {test2}")
+    test3 = set_auth(mysql, True)
+    test4 = check_names(mysql)
+    print(f"clear auth {test3}")
+    print(f"check names (after clear) {test4}")
     return f"""
     <h1>Check terminal for output</h1>
-    <h2>{test}</h2>
+    <h2>set auth {test}</h2>
+    <h2>check names {test2}</h2>
+    <h2>set auth (clear) {test2}</h2>
+    <h2>check names (after clear) {test2}</h2>
     """
 
 
 if __name__ == '__main__':
-    app.secret_key = 'sectesdfasj;dfakjs;a234283407*(&#(*$&42038470238'
-    app.run(port=80, host='0.0.0.0')
+    setup = Setup()
+    app.secret_key = setup.secret_key
+    app.run(port=setup.port, host=setup.host, debug=setup.debug)
