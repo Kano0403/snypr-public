@@ -442,6 +442,8 @@ def admin_panel():
     test4 = check_names(mysql)
     print(f"clear auth {test3}")
     print(f"check names (after clear) {test4}")
+    test = set_auth(mysql)
+    print(test)
     return f"""
     <h1>Check terminal for output</h1>
     <h2>set auth {test}</h2>
@@ -454,4 +456,4 @@ def admin_panel():
 if __name__ == '__main__':
     setup = Setup()
     app.secret_key = setup.secret_key
-    app.run(port=setup.port, host=setup.host, debug=setup.debug)
+    app.run(port=setup.port, host=setup.host)
