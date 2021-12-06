@@ -28,6 +28,7 @@ app.config['MYSQL_CURSORCLASS'] = 'DictCursor'
 del database_info
 
 
+# TODO: Separate Wraps, Form Classes, and Registration Checks to their own files.
 # ----- WRAPS ----- #
 def is_owner(name_id):
     cur = mysql.connection.cursor()
@@ -436,14 +437,14 @@ def admin_panel():
     print(datetime.datetime.utcnow())
     test = set_auth(mysql)
     test2 = check_names(mysql)
-    print(f"set_auth: {test}")
-    print(f"check_names: {test2}")
-    test3 = set_auth(mysql, True)
-    test4 = check_names(mysql)
-    print(f"clear auth {test3}")
-    print(f"check names (after clear) {test4}")
-    test = set_auth(mysql)
-    print(test)
+    # print(f"set_auth: {test}")
+    # print(f"check_names: {test2}")
+    # test3 = set_auth(mysql, True)
+    # test4 = check_names(mysql)
+    # print(f"clear auth {test3}")
+    # print(f"check names (after clear) {test4}")
+    # test = set_auth(mysql)
+    # print(test)
     return f"""
     <h1>Check terminal for output</h1>
     <h2>set auth {test}</h2>
@@ -454,6 +455,7 @@ def admin_panel():
 
 
 if __name__ == '__main__':
+    set_auth(mysql, clear=True)
     setup = Setup()
     app.secret_key = setup.secret_key
     app.run(port=setup.port, host=setup.host)

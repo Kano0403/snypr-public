@@ -1,0 +1,5 @@
+# TODO: Add new error returns to list -|- .csv formatting not strict but preferred
+error, meaning, return, format
+s000, Success, {output}, {"code": "s000", "output": {output}", "success": True}
+s401, Bid Failed, Namebase response, {"code": "s401", "message": {namebase error code}"}
+s402, Auction not started, "Waiting for name auction to begin.", {"code": "s402", "message": "Waiting for name auction to begin."}
