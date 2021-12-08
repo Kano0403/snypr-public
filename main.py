@@ -14,6 +14,7 @@ from accountvar import DatabaseInfo, Setup
 
 # Hehehe
 app = Flask(__name__)
+# app.config['SERVER_NAME'] = '127.0.0.1'
 mysql = MySQL(app)
 database_info = DatabaseInfo()
 

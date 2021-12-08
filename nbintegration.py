@@ -14,7 +14,7 @@ marketplace = Marketplace()  # namebase_cookie=login_info.token)
 del login_info
 
 
-def check_names(mysql, database_host='localhost', database_user='root', database_password='', database_name='snypr-db1'):
+def check_names(mysql: MySQL, database_host: str = 'localhost', database_user: str = 'root', database_password: str = '', database_name: str = 'snypr-db1') -> dict:
     # # MySQL config
     # app.config['MYSQL_HOST'] = database_host
     # app.config['MYSQL_USER'] = database_user
@@ -53,7 +53,7 @@ def check_names(mysql, database_host='localhost', database_user='root', database
     return results
 
 
-def name_bidder(mysql, name):
+def name_bidder(mysql: MySQL, name: object) -> object:
     name_info = marketplace.get_domain_info(name['domain_name'])
 
     # Check if name has been initialized, and if not initialize it
@@ -64,25 +64,37 @@ def name_bidder(mysql, name):
         print(f"NB-create_bid: {make_bid}")
 
         # Check if the request went through
-        if not make_bid['success']:
+        if make_bid['success'] is None or not make_bid['success']:
             return {"code": "s401", "message": make_bid['code'], "success": False}
 
-        if name_info['closeBlock'] is None:
-            # Update database for frontend
-            update_names(mysql, 'active', int(bid))
-            # ENT-2 comments.py
-            return {"code": "s402", "message": "Waiting for name auction to begin.", "success": False}
+        # This does not belong here...
+        # if name_info['closeBlock'] is None:
+        #     # Update database for frontend
+        #     update_names(mysql, name['id'], 'active', int(bid))
+        #     # ENT-2 comments.py
+        #     return {"code": "s402", "message": "Waiting for name auction to begin.", "success": False}
 
         # Update database for frontend
-        update_names(mysql, 'active', int(bid),
-                     biddable_blocks=int(name_info['height']) - int(name_info['revealBlock']),
-                     total_blocks=int(name_info['height']) - int(name_info['closeBlock']))
+        update_names(mysql, name['id'], 'active', int(bid))
         # ENT-3 comments.py
 
         return {"code": "s000", "message": marketplace.get_domain_info(name['domain_name']), "success": True}
 
     print('Name Already Initialized')
 
+    if not name_info['openBlock'] is None:
+        if name_info['height'] >= name_info['revealBlock']:
+            if not name['state'] == 'reveal':
+                update_names(mysql, name['id'], 'reveal', name['current_bid'],
+                             total_blocks=int(name_info['height']) - int(name_info['closeBlock']))
+            return {"code": "s403-a", "message": "Name is in reveal.", "success": True}
+        elif name_info['height'] >= name_info['closeBlock']:
+            update_names(mysql, name['id'], 'finalized', name['current_bid'],
+                         biddable_blocks=int(name_info['height']) - int(name_info['revealBlock']),
+                         total_blocks=int(name_info['height']) - int(name_info['closeBlock']))
+            return {"code": "s403-b", "message": "Name auction ended.", "success": True}
+
+    # Print name bids to console
     for each in name_info['bids']:
         print(f"Stake: {each['stake_amount']}")
         print(f"is_own: {each['is_own']}")
@@ -101,7 +113,7 @@ def name_bidder(mysql, name):
         print(f"Bid Not Needed")
 
 
-def is_highest(bids):
+def is_highest(bids: object) -> object:
     bids = sorted(bids, key=itemgetter('stake_amount'), reverse=True)
     print(f"Bids: {bids}")
 
@@ -112,22 +124,23 @@ def is_highest(bids):
     else:
         if bids[0]['is_own']:
             return {"is_bid_needed": False}
-    return {"is_bid_needed": True, "highest_bid": (int(bids[0]['stake_amount'])/1000000)}
+    return {"is_bid_needed": True, "highest_bid": (int(bids[0]['stake_amount']) / 1000000)}
 
 
-def update_names(mysql, state, bid, biddable_blocks=-1, total_blocks=-1):
+def update_names(mysql: MySQL, id: int, state: str, bid: int, biddable_blocks: int = -1, total_blocks: int = -1) -> None:
     cur = mysql.connection.cursor()
-    cur.execute("UPDATE names SET state = %s, biddable_blocks = %s, total_blocks = %s, current_bid = %s, date_edited = %s", (
+    cur.execute("UPDATE names SET state = %s, biddable_blocks = %s, total_blocks = %s, current_bid = %s, date_edited = %s WHERE id = %s", (
         state,  # State
         int(biddable_blocks),  # biddable_blocks
         int(total_blocks),  # total_blocks
         int(bid),  # current_bid
-        datetime.datetime.utcnow()  # date_edited
+        datetime.datetime.utcnow(),  # date_edited
+        id  # ID of name in database
     ))
     cur.close()
 
 
-def set_auth(mysql, clear=False):
+def set_auth(mysql: MySQL, clear: bool = False) -> object:
     global marketplace
     if clear:
         marketplace = Marketplace()
@@ -136,6 +149,6 @@ def set_auth(mysql, clear=False):
     cur.execute("SELECT cookie FROM users WHERE id = %s", [session['id']])
     cookie = cur.fetchone()['cookie']
     if cookie is None:
-        return "Please add a cookie to your account"
+        return {"code": "s501", "message": "Please add a cookie to your account", "success": False}
     marketplace = Marketplace(namebase_cookie=cookie)
-    return marketplace.get_user_info()
+    return {"code": "s501", "message": marketplace.get_user_info(), "success": True}

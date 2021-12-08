@@ -3,3 +3,7 @@ error, meaning, return, format
 s000, Success, {output}, {"code": "s000", "output": {output}", "success": True}
 s401, Bid Failed, Namebase response, {"code": "s401", "message": {namebase error code}"}
 s402, Auction not started, "Waiting for name auction to begin.", {"code": "s402", "message": "Waiting for name auction to begin."}
+s403-a, Name is in reveal, "Name is in reveal.", {"code": "s403", "message": "Name is in reveal.", "success": True}
+s403-b, Name auction ended, "Name auction ended.", {"code": "s403", "message": "Name auction ended.", "success": True}
+
+s501, Cookie not set, "Please add a cookie to your account", {"code": "s501", "message": "Please add a cookie to your account", "success": False}

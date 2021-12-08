@@ -1,0 +1,1 @@
+{'start_time': datetime.datetime(2021, 12, 8, 4, 41, 5, 790158), 8: None, 9: None, 13: None, 15: {'code': 's402', 'message': 'Waiting for name auction to begin.', 'success': False}, 'end_time': datetime.datetime(2021, 12, 8, 4, 41, 12, 116030)}
