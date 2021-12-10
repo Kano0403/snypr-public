@@ -1,7 +1,7 @@
 from operator import itemgetter
 
 from namebase_marketplace.marketplace import *
-from accountvar import AccountInfo
+from accountvar import AccountInfo, DatabaseInfo
 
 from flask import Flask, request, render_template, flash, redirect, url_for, session
 from flask_mysqldb import MySQL
@@ -9,6 +9,18 @@ import datetime
 
 login_info = AccountInfo()
 marketplace = Marketplace()  # namebase_cookie=login_info.token)
+
+app = Flask(__name__)
+# app.config['SERVER_NAME'] = '127.0.0.1'
+mysql = MySQL(app)
+database_info = DatabaseInfo()
+
+# MySQL config
+app.config['MYSQL_HOST'] = database_info.host
+app.config['MYSQL_USER'] = database_info.user
+app.config['MYSQL_PASSWORD'] = database_info.password
+app.config['MYSQL_DB'] = database_info.name
+app.config['MYSQL_CURSORCLASS'] = 'DictCursor'
 
 # Delete variables holding sensitive information
 del login_info
@@ -190,3 +202,7 @@ def set_auth(mysql: MySQL, id_sa: int = None, use_session: bool = False, clear: 
         return {"code": "s502", "message": "Invalid Cookie", "success": False}
 
     return {"code": "s000", "message": "Auth set: " + user_info, "success": True}
+
+
+if __name__ == "__main__":
+    check_names()
