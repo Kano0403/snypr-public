@@ -36,7 +36,7 @@ mysql_cnxn = pyodbc.connect(cnxn_str)
 del database_info
 
 
-def check_names(mysql: MySQL = mysql_cnxn, database_host: str = 'localhost', database_user: str = 'root',
+def check_names(mysql: object = mysql_cnxn, database_host: str = 'localhost', database_user: str = 'root',
                 database_password: str = '', database_name: str = 'snypr-db1') -> dict:
     # # MySQL config
     # app.config['MYSQL_HOST'] = database_host
@@ -48,7 +48,6 @@ def check_names(mysql: MySQL = mysql_cnxn, database_host: str = 'localhost', dat
     cur = mysql.cursor()
     cur.execute("SELECT * FROM names WHERE state = %s OR state = %s OR state = %s", ('active', 'reveal', ''))
     names = cur.fetchall()
-    cur
 
     names = sorted(names, key=itemgetter('biddable_blocks'))
     print(names)
@@ -199,6 +198,9 @@ def set_auth(mysql_2: MySQL, id_sa: int = None, use_session: bool = False, clear
 
     cur.execute("SELECT cookie FROM users WHERE id = %s", [id_sa])
     cookie = cur.fetchone()['cookie']
+
+    if cookie is None:
+        return {"code": "s501", "message": "Please add a cookie to your account", "success": False}
 
     marketplace = Marketplace(namebase_cookie=cookie)
 
