@@ -1,32 +1,42 @@
 from operator import itemgetter
-
+# from main import app, mysql
 from namebase_marketplace.marketplace import *
 from accountvar import AccountInfo, DatabaseInfo
 
-from flask import Flask, request, render_template, flash, redirect, url_for, session
-from flask_mysqldb import MySQL
+# from flask import Flask, request, render_template, flash, redirect, url_for, session
+# from flask_mysqldb import MySQL
+import pyodbc as pyodbc
 import datetime
 
-login_info = AccountInfo()
+# login_info = AccountInfo()
+database_info = DatabaseInfo()
 marketplace = Marketplace()  # namebase_cookie=login_info.token)
 
-app = Flask(__name__)
-# app.config['SERVER_NAME'] = '127.0.0.1'
-mysql = MySQL(app)
-database_info = DatabaseInfo()
-
-# MySQL config
-app.config['MYSQL_HOST'] = database_info.host
-app.config['MYSQL_USER'] = database_info.user
-app.config['MYSQL_PASSWORD'] = database_info.password
-app.config['MYSQL_DB'] = database_info.name
-app.config['MYSQL_CURSORCLASS'] = 'DictCursor'
-
-# Delete variables holding sensitive information
-del login_info
+# del login_info
 
 
-def check_names(mysql: MySQL, database_host: str = 'localhost', database_user: str = 'root',
+# app = Flask(__name__)
+# mysql_2 = MySQL(app)
+#
+# app.config['MYSQL_HOST'] = database_info.host
+# app.config['MYSQL_USER'] = database_info.user
+# app.config['MYSQL_PASSWORD'] = database_info.password
+# app.config['MYSQL_DB'] = database_info.name
+# app.config['MYSQL_CURSORCLASS'] = 'DictCursor'
+
+cnxn_str = ("Driver={'SQL Server Native Client 11.0'};"
+            f"Server={database_info.host},3306;"
+            f"Database={database_info.name};"
+            f"UID={database_info.user};"
+            f"PWD={database_info.password};")
+
+mysql_cnxn = pyodbc.connect(cnxn_str)
+
+
+del database_info
+
+
+def check_names(mysql: MySQL = mysql_cnxn, database_host: str = 'localhost', database_user: str = 'root',
                 database_password: str = '', database_name: str = 'snypr-db1') -> dict:
     # # MySQL config
     # app.config['MYSQL_HOST'] = database_host
@@ -35,10 +45,10 @@ def check_names(mysql: MySQL, database_host: str = 'localhost', database_user: s
     # app.config['MYSQL_DB'] = database_name
     # app.config['MYSQL_CURSORCLASS'] = 'DictCursor'
 
-    cur = mysql.connection.cursor()
+    cur = mysql.cursor()
     cur.execute("SELECT * FROM names WHERE state = %s OR state = %s OR state = %s", ('active', 'reveal', ''))
     names = cur.fetchall()
-    cur.close()
+    cur
 
     names = sorted(names, key=itemgetter('biddable_blocks'))
     print(names)
@@ -172,7 +182,7 @@ def update_names(mysql: MySQL, id_un: int, state: str, bid: int, biddable_blocks
     cur.close()
 
 
-def set_auth(mysql: MySQL, id_sa: int = None, use_session: bool = False, clear: bool = False) -> object:
+def set_auth(mysql_2: MySQL, id_sa: int = None, use_session: bool = False, clear: bool = False) -> object:
     global marketplace
     cookie = None
     cur = mysql.connection.cursor()
@@ -205,4 +215,4 @@ def set_auth(mysql: MySQL, id_sa: int = None, use_session: bool = False, clear: 
 
 
 if __name__ == "__main__":
-    check_names()
+
