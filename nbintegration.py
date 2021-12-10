@@ -10,6 +10,7 @@ import datetime
 login_info = AccountInfo()
 marketplace = Marketplace()  # namebase_cookie=login_info.token)
 
+# Hehe
 # Delete variables holding sensitive information
 del login_info
 
