@@ -9,7 +9,7 @@ from wtforms import Form, StringField, PasswordField, validators
 
 import datetime
 
-from nbintegration import check_names, set_auth
+# from nbintegration import check_names, set_auth
 from accountvar import DatabaseInfo, Setup
 
 # Hehehe
@@ -436,8 +436,8 @@ def logout():
 def admin_panel():
     print(datetime.datetime.now())
     print(datetime.datetime.utcnow())
-    test = set_auth(mysql)
-    test2 = check_names(mysql)
+    # test = set_auth(mysql)
+    # test2 = check_names(mysql)
     # print(f"set_auth: {test}")
     # print(f"check_names: {test2}")
     # test3 = set_auth(mysql, True)
@@ -446,17 +446,18 @@ def admin_panel():
     # print(f"check names (after clear) {test4}")
     # test = set_auth(mysql)
     # print(test)
-    return f"""
-    <h1>Check terminal for output</h1>
-    <h2>set auth {test}</h2>
-    <h2>check names {test2}</h2>
-    <h2>set auth (clear) {test2}</h2>
-    <h2>check names (after clear) {test2}</h2>
-    """
+    # return f"""
+    # <h1>Check terminal for output</h1>
+    # <h2>set auth {test}</h2>
+    # <h2>check names {test2}</h2>
+    # <h2>set auth (clear) {test2}</h2>
+    # <h2>check names (after clear) {test2}</h2>
+    # """
+    return
 
 
 if __name__ == '__main__':
-    set_auth(mysql, clear=True)
+    # set_auth(mysql, clear=True)
     setup = Setup()
     app.secret_key = setup.secret_key
     app.run(port=setup.port, host=setup.host)
