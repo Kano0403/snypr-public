@@ -14,7 +14,8 @@ marketplace = Marketplace()  # namebase_cookie=login_info.token)
 del login_info
 
 
-def check_names(mysql: MySQL, database_host: str = 'localhost', database_user: str = 'root', database_password: str = '', database_name: str = 'snypr-db1') -> dict:
+def check_names(mysql: MySQL, database_host: str = 'localhost', database_user: str = 'root',
+                database_password: str = '', database_name: str = 'snypr-db1') -> dict:
     # # MySQL config
     # app.config['MYSQL_HOST'] = database_host
     # app.config['MYSQL_USER'] = database_user
@@ -37,15 +38,22 @@ def check_names(mysql: MySQL, database_host: str = 'localhost', database_user: s
     for name in names:
         print("-----------------")
         print(f"Name: {name}")
+        print(f"User ID: {name['owner_id']}")
 
         name_info = marketplace.get_domain_info(name['domain_name'])
         print(f"NB-domain_info: {name_info}")
 
-        results[name['id']] = name_bidder(mysql, name)  # Add results of the bidder to the final results
+        # Add results of the bidder to the final results
+        results[name['id']] = name_bidder(mysql, name)
+        print(results[name['id']])
         # ENT-1 comments.py
 
-    # results['total_time'] = results['start_time'] - datetime.datetime.utcnow()  # Define the time that it took to complete all checks.
-    results['end_time'] = datetime.datetime.utcnow()  # Define the time that the function ended.
+    # Define the time that it took to complete all checks.
+    # results['total_time'] = results['start_time'] - datetime.datetime.utcnow()
+
+    # Define the time that the function ended.
+    results['end_time'] = datetime.datetime.utcnow()
+
     with open('logs/check_names-cycles.txt', 'r+') as cycle_logs:
         cycle_logs.write(str(results))
     print(results)
@@ -64,7 +72,9 @@ def name_bidder(mysql: MySQL, name: object) -> object:
         print(f"NB-create_bid: {make_bid}")
 
         # Check if the request went through
-        if make_bid['success'] is None or not make_bid['success']:
+        try:
+            make_bid['success']
+        except KeyError:
             return {"code": "s401", "message": make_bid['code'], "success": False}
 
         # This does not belong here...
@@ -109,6 +119,13 @@ def name_bidder(mysql: MySQL, name: object) -> object:
         make_bid = marketplace.create_bid(name['domain_name'], bid, 0)
         print(f"NB-create_bid: {make_bid}")
 
+        try:
+            make_bid['success']
+        except KeyError:
+            return {"code": "s401", "message": make_bid['code'], "success": False}
+
+        return {"code": "s000", "message": make_bid, "success": True}
+
     else:
         print(f"Bid Not Needed")
 
@@ -127,28 +144,49 @@ def is_highest(bids: object) -> object:
     return {"is_bid_needed": True, "highest_bid": (int(bids[0]['stake_amount']) / 1000000)}
 
 
-def update_names(mysql: MySQL, id: int, state: str, bid: int, biddable_blocks: int = -1, total_blocks: int = -1) -> None:
+def update_names(mysql: MySQL, id_un: int, state: str, bid: int, biddable_blocks: int = -1,
+                 total_blocks: int = -1) -> None:
     cur = mysql.connection.cursor()
-    cur.execute("UPDATE names SET state = %s, biddable_blocks = %s, total_blocks = %s, current_bid = %s, date_edited = %s WHERE id = %s", (
-        state,  # State
-        int(biddable_blocks),  # biddable_blocks
-        int(total_blocks),  # total_blocks
-        int(bid),  # current_bid
-        datetime.datetime.utcnow(),  # date_edited
-        id  # ID of name in database
-    ))
+    cur.execute(
+        "UPDATE names SET state = %s, biddable_blocks = %s, total_blocks = %s, current_bid = %s, date_edited = %s WHERE id = %s",
+        (
+            state,  # State
+            int(biddable_blocks),  # biddable_blocks
+            int(total_blocks),  # total_blocks
+            int(bid),  # current_bid
+            datetime.datetime.utcnow(),  # date_edited
+            id_un  # ID of name in database
+        ))
     cur.close()
 
 
-def set_auth(mysql: MySQL, clear: bool = False) -> object:
+def set_auth(mysql: MySQL, id_sa: int = None, use_session: bool = False, clear: bool = False) -> object:
     global marketplace
+    cookie = None
+    cur = mysql.connection.cursor()
+
+    if id_sa is None and not use_session and not clear:
+        clear = True
+
     if clear:
         marketplace = Marketplace()
-        return marketplace.get_user_info()
-    cur = mysql.connection.cursor()
-    cur.execute("SELECT cookie FROM users WHERE id = %s", [session['id']])
+        return {"code": "s000", "message": "Auth cleared", "success": True}
+
+    if use_session:
+        id_sa = session['id']
+
+    cur.execute("SELECT cookie FROM users WHERE id = %s", [id_sa])
     cookie = cur.fetchone()['cookie']
-    if cookie is None:
-        return {"code": "s501", "message": "Please add a cookie to your account", "success": False}
+
     marketplace = Marketplace(namebase_cookie=cookie)
-    return {"code": "s501", "message": marketplace.get_user_info(), "success": True}
+
+    user_info = marketplace.get_user_info()
+    try:
+        if user_info['verificationStatus'] == 'VERIFIED':
+            pass
+        else:
+            return {"code": "s502", "message": "Invalid Cookie", "success": False}
+    except KeyError:
+        return {"code": "s502", "message": "Invalid Cookie", "success": False}
+
+    return {"code": "s000", "message": "Auth set: " + user_info, "success": True}
