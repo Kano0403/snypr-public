@@ -9,7 +9,7 @@ from wtforms import Form, StringField, PasswordField, validators
 
 import datetime
 
-# from nbintegration import check_names, set_auth
+from nbintegration import check_names, set_auth
 from accountvar import DatabaseInfo, Setup
 
 # Hehehe
@@ -216,7 +216,7 @@ def about():
 def dashboard():
     # Get names that are owned by current user
     cur = mysql.connection.cursor()
-    result = cur.execute("SELECT * FROM names WHERE owner_id = %s", [session['id']])
+    result = cur.execute("SELECT * FROM names WHERE owner_id = %s AND state != %s", [session['id'], 'finalized'])
     names = cur.fetchall()
     cur.close()
     if result > 0:
@@ -250,7 +250,7 @@ def name(id):
     state = name_info['state']
     biddable_blocks = name_info['biddable_blocks']
     total_blocks = name_info['total_blocks']
-    is_most_recent = name_info['is_most_recent']
+    # is_most_recent = name_info['is_most_recent']
 
     protect_after = name_info['protect_after']
     increased_buffer = name_info['increased_buffer']
@@ -432,32 +432,31 @@ def logout():
 
 
 @app.route('/adminpanel')
-@is_admin
+# @is_admin
 def admin_panel():
     print(datetime.datetime.now())
     print(datetime.datetime.utcnow())
-    # test = set_auth(mysql)
-    # test2 = check_names(mysql)
-    # print(f"set_auth: {test}")
-    # print(f"check_names: {test2}")
+    test = set_auth(mysql)
+    test2 = check_names(mysql)
+    print(f"set_auth: {test}")
+    print(f"check_names: {test2}")
     # test3 = set_auth(mysql, True)
     # test4 = check_names(mysql)
     # print(f"clear auth {test3}")
     # print(f"check names (after clear) {test4}")
     # test = set_auth(mysql)
     # print(test)
-    # return f"""
-    # <h1>Check terminal for output</h1>
-    # <h2>set auth {test}</h2>
-    # <h2>check names {test2}</h2>
-    # <h2>set auth (clear) {test2}</h2>
-    # <h2>check names (after clear) {test2}</h2>
-    # """
-    return
+    return f"""
+    <h1>Check terminal for output</h1>
+    <h2>set auth {test}</h2>
+    <h2>check names {test2}</h2>
+    <h2>set auth (clear) {test2}</h2>
+    <h2>check names (after clear) {test2}</h2>
+    """
 
 
 if __name__ == '__main__':
     # set_auth(mysql, clear=True)
     setup = Setup()
     app.secret_key = setup.secret_key
-    app.run(port=setup.port, host=setup.host)
+    app.run(port=setup.port, host=setup.host, debug=True)

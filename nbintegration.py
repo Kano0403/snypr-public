@@ -1,3 +1,4 @@
+import collections
 from operator import itemgetter
 
 from namebase_marketplace.marketplace import *
@@ -41,12 +42,16 @@ def check_names(mysql: MySQL, database_host: str = 'localhost', database_user: s
         print(f"Name: {name}")
         print(f"User ID: {name['owner_id']}")
 
+        set_auth(mysql, name['owner_id'])
+        print(f"Auth: {marketplace.get_user_info()}")
+
         name_info = marketplace.get_domain_info(name['domain_name'])
         print(f"NB-domain_info: {name_info}")
 
         # Add results of the bidder to the final results
         results[name['id']] = name_bidder(mysql, name)
         print(results[name['id']])
+        set_auth(mysql, clear=True)
         # ENT-1 comments.py
 
     # Define the time that it took to complete all checks.
@@ -56,7 +61,7 @@ def check_names(mysql: MySQL, database_host: str = 'localhost', database_user: s
     results['end_time'] = datetime.datetime.utcnow()
 
     with open('logs/check_names-cycles.txt', 'r+') as cycle_logs:
-        cycle_logs.write(str(results))
+        cycle_logs.write(f'{str(results)}\n')
     print(results)
 
     return results
@@ -94,16 +99,16 @@ def name_bidder(mysql: MySQL, name: object) -> object:
     print('Name Already Initialized')
 
     if not name_info['openBlock'] is None:
-        if name_info['height'] >= name_info['revealBlock']:
-            if not name['state'] == 'reveal':
-                update_names(mysql, name['id'], 'reveal', name['current_bid'],
-                             total_blocks=int(name_info['height']) - int(name_info['closeBlock']))
-            return {"code": "s403-a", "message": "Name is in reveal.", "success": True}
-        elif name_info['height'] >= name_info['closeBlock']:
+        if name_info['height'] >= name_info['closeBlock']:
             update_names(mysql, name['id'], 'finalized', name['current_bid'],
                          biddable_blocks=int(name_info['height']) - int(name_info['revealBlock']),
                          total_blocks=int(name_info['height']) - int(name_info['closeBlock']))
             return {"code": "s403-b", "message": "Name auction ended.", "success": True}
+        elif name_info['height'] >= name_info['revealBlock']:
+            if not name['state'] == 'reveal':
+                update_names(mysql, name['id'], 'reveal', name['current_bid'],
+                             total_blocks=int(name_info['height']) - int(name_info['closeBlock']))
+            return {"code": "s403-a", "message": "Name is in reveal.", "success": True}
 
     # Print name bids to console
     for each in name_info['bids']:
@@ -131,17 +136,21 @@ def name_bidder(mysql: MySQL, name: object) -> object:
         print(f"Bid Not Needed")
 
 
-def is_highest(bids: object) -> object:
+def is_highest(bids: collections.Iterable) -> object:
+    for bid in bids:
+        bid['stake_amount'] = int(bid['stake_amount'])
+
     bids = sorted(bids, key=itemgetter('stake_amount'), reverse=True)
     print(f"Bids: {bids}")
 
     # Check if highest bid is not ours, Check if top bids are equal and both ours
     if len(bids) > 1:
+        # Checks if top bids are tied and if so, it checks if both are ours.
         if bids[0]['stake_amount'] == bids[1]['stake_amount'] and (bids[0]['is_own'] and bids[1]['is_own']):
             return {"is_bid_needed": False}
-    else:
-        if bids[0]['is_own']:
-            return {"is_bid_needed": False}
+    # Checks if top bid in ours
+    if bids[0]['is_own']:
+        return {"is_bid_needed": False}
     return {"is_bid_needed": True, "highest_bid": (int(bids[0]['stake_amount']) / 1000000)}
 
 
@@ -158,6 +167,7 @@ def update_names(mysql: MySQL, id_un: int, state: str, bid: int, biddable_blocks
             datetime.datetime.utcnow(),  # date_edited
             id_un  # ID of name in database
         ))
+    mysql.connection.commit()
     cur.close()
 
 
@@ -190,4 +200,4 @@ def set_auth(mysql: MySQL, id_sa: int = None, use_session: bool = False, clear: 
     except KeyError:
         return {"code": "s502", "message": "Invalid Cookie", "success": False}
 
-    return {"code": "s000", "message": "Auth set: " + user_info, "success": True}
+    return {"code": "s000", "message": f"Auth set: {user_info}", "success": True}
