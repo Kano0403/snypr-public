@@ -135,7 +135,8 @@ def validate_access_code(access_code):
 # ----- Form Classes ----- #
 class NameInitiationForm(Form):
     domain_name = StringField('Domain', [
-        validators.DataRequired(message='Please fill out all fields.')
+        validators.DataRequired(message='Please fill out all fields.'),
+        validators.length(1, 60, message='Please make sure that the name is at least one character and below 60.')
     ])
     plan = StringField('Plan', [
         validators.AnyOf(values=['Regular', 'Pro', 'Elite'], message='Please choose a plan based on the list of available plans: Regular, Pro, Elite')
@@ -431,8 +432,15 @@ def logout():
     return redirect(url_for('login'))
 
 
+@app.route('/update-domains')
+def update_domains():
+    print(check_names(mysql))
+    print(set_auth(mysql, clear=True))
+    return """<p>Names Updated</p>"""
+
+
 @app.route('/adminpanel')
-# @is_admin
+@is_admin
 def admin_panel():
     print(datetime.datetime.now())
     print(datetime.datetime.utcnow())
@@ -459,4 +467,4 @@ if __name__ == '__main__':
     # set_auth(mysql, clear=True)
     setup = Setup()
     app.secret_key = setup.secret_key
-    app.run(port=setup.port, host=setup.host, debug=True)
+    app.run(port=setup.port, host=setup.host, debug=setup.debug)

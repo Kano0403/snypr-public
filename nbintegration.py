@@ -4,7 +4,7 @@ from operator import itemgetter
 from namebase_marketplace.marketplace import *
 from accountvar import AccountInfo
 
-from flask import Flask, request, render_template, flash, redirect, url_for, session
+from flask import session
 from flask_mysqldb import MySQL
 import datetime
 
@@ -16,8 +16,7 @@ marketplace = Marketplace()  # namebase_cookie=login_info.token)
 del login_info
 
 
-def check_names(mysql: MySQL, database_host: str = 'localhost', database_user: str = 'root',
-                database_password: str = '', database_name: str = 'snypr-db1') -> dict:
+def check_names(mysql: MySQL) -> dict:  # , database_host: str = 'localhost', database_user: str = 'root', database_password: str = '', database_name: str = 'snypr-db1') -> dict:
     # # MySQL config
     # app.config['MYSQL_HOST'] = database_host
     # app.config['MYSQL_USER'] = database_user
@@ -26,7 +25,7 @@ def check_names(mysql: MySQL, database_host: str = 'localhost', database_user: s
     # app.config['MYSQL_CURSORCLASS'] = 'DictCursor'
 
     cur = mysql.connection.cursor()
-    cur.execute("SELECT * FROM names WHERE state = %s OR state = %s OR state = %s", ('active', 'reveal', ''))
+    cur.execute("SELECT * FROM names WHERE state = %s OR state = %s OR state = %s OR state = %s", ('active', 'reveal', 'new', ''))
     names = cur.fetchall()
     cur.close()
 
@@ -40,10 +39,10 @@ def check_names(mysql: MySQL, database_host: str = 'localhost', database_user: s
     for name in names:
         print("-----------------")
         print(f"Name: {name}")
-        print(f"User ID: {name['owner_id']}")
+        # print(f"User ID: {name['owner_id']}")
 
         set_auth(mysql, name['owner_id'])
-        print(f"Auth: {marketplace.get_user_info()}")
+        # print(f"Auth: {marketplace.get_user_info()}")
 
         name_info = marketplace.get_domain_info(name['domain_name'])
         print(f"NB-domain_info: {name_info}")
@@ -67,12 +66,12 @@ def check_names(mysql: MySQL, database_host: str = 'localhost', database_user: s
     return results
 
 
-def name_bidder(mysql: MySQL, name: object) -> object:
+def name_bidder(mysql: MySQL, name: dict) -> object:
     name_info = marketplace.get_domain_info(name['domain_name'])
 
     # Check if name has been initialized, and if not initialize it
     if not name_info['bids']:
-        print("Name not initialized")
+        # print("Name not initialized")
         bid = name['increased_buffer']
         make_bid = marketplace.create_bid(name['domain_name'], bid, 0)
         print(f"NB-create_bid: {make_bid}")
@@ -111,9 +110,9 @@ def name_bidder(mysql: MySQL, name: object) -> object:
             return {"code": "s403-a", "message": "Name is in reveal.", "success": True}
 
     # Print name bids to console
-    for each in name_info['bids']:
-        print(f"Stake: {each['stake_amount']}")
-        print(f"is_own: {each['is_own']}")
+    # for each in name_info['bids']:
+    #     print(f"Stake: {each['stake_amount']}")
+    #     print(f"is_own: {each['is_own']}")
 
     new_bid_info = is_highest(name_info['bids'])
 
@@ -136,12 +135,12 @@ def name_bidder(mysql: MySQL, name: object) -> object:
         print(f"Bid Not Needed")
 
 
-def is_highest(bids: collections.Iterable) -> object:
+def is_highest(bids: collections.Iterable) -> dict:
     for bid in bids:
         bid['stake_amount'] = int(bid['stake_amount'])
 
     bids = sorted(bids, key=itemgetter('stake_amount'), reverse=True)
-    print(f"Bids: {bids}")
+    # print(f"Bids: {bids}")
 
     # Check if highest bid is not ours, Check if top bids are equal and both ours
     if len(bids) > 1:
@@ -173,7 +172,7 @@ def update_names(mysql: MySQL, id_un: int, state: str, bid: int, biddable_blocks
 
 def set_auth(mysql: MySQL, id_sa: int = None, use_session: bool = False, clear: bool = False) -> object:
     global marketplace
-    cookie = None
+    # cookie = None
     cur = mysql.connection.cursor()
 
     if id_sa is None and not use_session and not clear:
