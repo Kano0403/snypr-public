@@ -12,7 +12,7 @@ import datetime
 from nbintegration import check_names, set_auth
 from accountvar import DatabaseInfo, Setup
 
-# Hehehe
+# Hehehe hehe
 app = Flask(__name__)
 # app.config['SERVER_NAME'] = '127.0.0.1'
 mysql = MySQL(app)
